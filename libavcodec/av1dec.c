@@ -826,6 +826,7 @@ static int set_context_with_sequence(AVCodecContext *avctx,
 static int update_context_with_frame_header(AVCodecContext *avctx,
                                             const AV1RawFrameHeader *header)
 {
+    const AV1DecContext *s = avctx->priv_data;
     AVRational aspect_ratio;
     int width = header->frame_width_minus_1 + 1;
     int height = header->frame_height_minus_1 + 1;
@@ -837,6 +838,14 @@ static int update_context_with_frame_header(AVCodecContext *avctx,
         ret = ff_set_dimensions(avctx, width, height);
         if (ret < 0)
             return ret;
+    }
+
+    /* Hardware frame pools are made once per sequence (get_pixel_format)
+     * from the coded size: size them for the largest frame the sequence
+     * allows, as frames may grow up to it without a new sequence header. */
+    if (s->raw_seq) {
+        avctx->coded_width  = FFMAX(width,  s->raw_seq->max_frame_width_minus_1 + 1);
+        avctx->coded_height = FFMAX(height, s->raw_seq->max_frame_height_minus_1 + 1);
     }
 
     av_reduce(&aspect_ratio.num, &aspect_ratio.den,
