@@ -152,10 +152,6 @@ static const VAAPIFormatDescriptor vaapi_format_map[] = {
     MAP(XYUV, YUV444,  VUYX,    0),
 #endif
     MAP(Y800, YUV400,  GRAY8,   0),
-#ifdef VA_FOURCC_Y16
-    /* Greyscale above 8 bits, MSB-aligned in 16-bit samples. */
-    MAP(Y16,  YUV400,  GRAY16,  0),
-#endif
 #ifdef VA_FOURCC_P010
     MAP(P010, YUV420_10BPP, P010, 0),
 #endif
