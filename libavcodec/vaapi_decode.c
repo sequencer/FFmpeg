@@ -266,6 +266,9 @@ static const struct {
 #define MAP(va, av) { VA_FOURCC_ ## va, AV_PIX_FMT_ ## av }
     // 4:0:0
     MAP(Y800, GRAY8),
+#ifdef VA_FOURCC_Y16
+    MAP(Y16,  GRAY16),
+#endif
     // 4:2:0
     MAP(NV12, NV12),
     MAP(YV12, YUV420P),
@@ -373,6 +376,16 @@ static int vaapi_decode_find_best_format(AVCodecContext *avctx,
             continue;
         }
         format = vaapi_format_map[j].pix_fmt;
+#ifdef VA_FOURCC_Y16
+        /* Y16 holds gray10/gray12 samples MSB-aligned, and the frames
+         * context downloads them to those formats with a shift.  Going
+         * through GRAY16 or P010/P012 instead would make swscale rescale
+         * or range-expand the samples on the way back to gray10/gray12. */
+        if (fourcc == VA_FOURCC_Y16 &&
+            (source_format == AV_PIX_FMT_GRAY10 ||
+             source_format == AV_PIX_FMT_GRAY12))
+            format = source_format;
+#endif
         av_log(avctx, AV_LOG_DEBUG, "Considering format %#x -> %s.\n",
                fourcc, av_get_pix_fmt_name(format));
 

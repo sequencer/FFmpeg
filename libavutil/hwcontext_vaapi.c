@@ -152,6 +152,13 @@ static const VAAPIFormatDescriptor vaapi_format_map[] = {
     MAP(XYUV, YUV444,  VUYX,    0),
 #endif
     MAP(Y800, YUV400,  GRAY8,   0),
+#ifdef VA_FOURCC_Y16
+    // Y16 keeps the samples MSB-aligned in 16 bits.  Frames of the narrower
+    // gray formats are moved to and from it with a shift (vaapi_y16_shift).
+    MAP(Y16,  YUV400,  GRAY16,  0),
+    MAP(Y16,  YUV400,  GRAY12,  0),
+    MAP(Y16,  YUV400,  GRAY10,  0),
+#endif
 #ifdef VA_FOURCC_P010
     MAP(P010, YUV420_10BPP, P010, 0),
 #endif
@@ -250,6 +257,27 @@ static int vaapi_get_image_format(AVHWDeviceContext *hwdev,
     if (!image_format)
         return AVERROR(EINVAL);
     return vaapi_get_img_desc_and_format(hwdev, pix_fmt, NULL, image_format);
+}
+
+static int vaapi_y16_shift(enum AVPixelFormat pix_fmt)
+{
+#ifdef VA_FOURCC_Y16
+    const VAAPIFormatDescriptor *desc = vaapi_format_from_pix_fmt(pix_fmt, NULL);
+    if (desc && desc->fourcc == VA_FOURCC_Y16)
+        return 16 - av_pix_fmt_desc_get(pix_fmt)->comp[0].depth;
+#endif
+    return 0;
+}
+
+static void vaapi_copy_y16(AVFrame *dst, const AVFrame *src,
+                           int down_shift, int up_shift)
+{
+    for (int y = 0; y < dst->height; y++) {
+        const uint16_t *s = (const uint16_t *)(src->data[0] + y * src->linesize[0]);
+        uint16_t       *d = (uint16_t *)(dst->data[0] + y * dst->linesize[0]);
+        for (int x = 0; x < dst->width; x++)
+            d[x] = s[x] >> down_shift << up_shift;
+    }
 }
 
 static int vaapi_frames_get_constraints(AVHWDeviceContext *hwdev,
@@ -756,13 +784,13 @@ static int vaapi_transfer_get_formats(AVHWFramesContext *hwfc,
     enum AVPixelFormat *pix_fmts;
     int i, k, sw_format_available;
 
-    sw_format_available = 0;
-    for (i = 0; i < ctx->nb_formats; i++) {
-        if (ctx->formats[i].pix_fmt == hwfc->sw_format)
-            sw_format_available = 1;
-    }
+    // The image formats list only the first pix_fmt of each fourcc, which
+    // misses the gray formats carried by Y16.
+    sw_format_available = !vaapi_get_img_desc_and_format(hwfc->device_ctx,
+                                                         hwfc->sw_format,
+                                                         NULL, NULL);
 
-    pix_fmts = av_malloc((ctx->nb_formats + 1) * sizeof(*pix_fmts));
+    pix_fmts = av_malloc((ctx->nb_formats + 2) * sizeof(*pix_fmts));
     if (!pix_fmts)
         return AVERROR(ENOMEM);
 
@@ -775,7 +803,7 @@ static int vaapi_transfer_get_formats(AVHWFramesContext *hwfc,
     for (i = 0; i < ctx->nb_formats; i++) {
         if (ctx->formats[i].pix_fmt == hwfc->sw_format)
             continue;
-        av_assert0(k < ctx->nb_formats);
+        av_assert0(k <= ctx->nb_formats);
         pix_fmts[k++] = ctx->formats[i].pix_fmt;
     }
     pix_fmts[k] = AV_PIX_FMT_NONE;
@@ -972,7 +1000,7 @@ static int vaapi_transfer_data_from(AVHWFramesContext *hwfc,
                                     AVFrame *dst, const AVFrame *src)
 {
     AVFrame *map;
-    int err;
+    int err, shift;
 
     if (dst->width > hwfc->width || dst->height > hwfc->height)
         return AVERROR(EINVAL);
@@ -989,9 +1017,14 @@ static int vaapi_transfer_data_from(AVHWFramesContext *hwfc,
     map->width  = dst->width;
     map->height = dst->height;
 
-    err = av_frame_copy(dst, map);
-    if (err)
-        goto fail;
+    shift = vaapi_y16_shift(dst->format);
+    if (shift) {
+        vaapi_copy_y16(dst, map, shift, 0);
+    } else {
+        err = av_frame_copy(dst, map);
+        if (err)
+            goto fail;
+    }
 
     err = 0;
 fail:
@@ -1003,7 +1036,7 @@ static int vaapi_transfer_data_to(AVHWFramesContext *hwfc,
                                   AVFrame *dst, const AVFrame *src)
 {
     AVFrame *map;
-    int err;
+    int err, shift;
 
     if (src->width > hwfc->width || src->height > hwfc->height)
         return AVERROR(EINVAL);
@@ -1020,9 +1053,14 @@ static int vaapi_transfer_data_to(AVHWFramesContext *hwfc,
     map->width  = src->width;
     map->height = src->height;
 
-    err = av_frame_copy(map, src);
-    if (err)
-        goto fail;
+    shift = vaapi_y16_shift(src->format);
+    if (shift) {
+        vaapi_copy_y16(map, src, 0, shift);
+    } else {
+        err = av_frame_copy(map, src);
+        if (err)
+            goto fail;
+    }
 
     err = 0;
 fail:
@@ -1034,6 +1072,11 @@ static int vaapi_map_to_memory(AVHWFramesContext *hwfc, AVFrame *dst,
                                const AVFrame *src, int flags)
 {
     int err;
+
+    // A mapping would expose the MSB-aligned Y16 samples unshifted.
+    if (vaapi_y16_shift(dst->format == AV_PIX_FMT_NONE ? hwfc->sw_format
+                                                       : dst->format))
+        return AVERROR(ENOSYS);
 
     err = vaapi_map_frame(hwfc, dst, src, flags);
     if (err)
