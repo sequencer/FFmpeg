@@ -21,6 +21,7 @@
 #include "config_components.h"
 
 #include "libavutil/attributes.h"
+#include "libavutil/hwcontext.h"
 #include "libavutil/hdr_dynamic_metadata.h"
 #include "libavutil/film_grain_params.h"
 #include "libavutil/mastering_display_metadata.h"
@@ -671,6 +672,13 @@ static int get_pixel_format(AVCodecContext *avctx)
     *fmtp++ = pix_fmt;
     *fmtp = AV_PIX_FMT_NONE;
 
+    /* Keep the hwaccel when it can take the new sequence: same format and a
+     * frame pool large enough for its frames. */
+    if (avctx->hw_frames_ctx) {
+        const AVHWFramesContext *frames = (AVHWFramesContext *)avctx->hw_frames_ctx->data;
+        if (frames->width < avctx->coded_width || frames->height < avctx->coded_height)
+            avctx->pix_fmt = AV_PIX_FMT_NONE;
+    }
     for (int i = 0; pix_fmts[i] != pix_fmt; i++)
         if (pix_fmts[i] == avctx->pix_fmt) {
             s->pix_fmt = pix_fmt;
