@@ -314,6 +314,12 @@ static const struct {
 #undef MAP
 };
 
+static int pix_fmt_depth(enum AVPixelFormat format)
+{
+    const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(format);
+    return desc ? desc->comp[0].depth : 0;
+}
+
 static int vaapi_decode_find_best_format(AVCodecContext *avctx,
                                          AVHWDeviceContext *device,
                                          VAConfigID config_id,
@@ -370,6 +376,18 @@ static int vaapi_decode_find_best_format(AVCodecContext *avctx,
         av_log(avctx, AV_LOG_DEBUG, "Considering format %#x -> %s.\n",
                fourcc, av_get_pix_fmt_name(format));
 
+        /* A surface that keeps the source's bit depth beats one that
+         * does not, whatever the chroma: av_find_best_pix_fmt_of_2 would
+         * pick gray (8-bit) over p010 for gray10. */
+        if (best_format != AV_PIX_FMT_NONE &&
+            (pix_fmt_depth(format)      >= pix_fmt_depth(source_format)) !=
+            (pix_fmt_depth(best_format) >= pix_fmt_depth(source_format))) {
+            if (pix_fmt_depth(format) >= pix_fmt_depth(source_format)) {
+                best_format = format;
+                best_fourcc = fourcc;
+            }
+            continue;
+        }
         best_format = av_find_best_pix_fmt_of_2(format, best_format,
                                                 source_format, 0, NULL);
         if (format == best_format)
