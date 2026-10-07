@@ -608,6 +608,9 @@ static int get_pixel_format(AVCodecContext *avctx)
 #endif
         break;
     case AV_PIX_FMT_YUV420P12:
+#if CONFIG_AV1_VAAPI_HWACCEL
+        *fmtp++ = AV_PIX_FMT_VAAPI;
+#endif
 #if CONFIG_AV1_VULKAN_HWACCEL
         *fmtp++ = AV_PIX_FMT_VULKAN;
 #endif
@@ -643,13 +646,24 @@ static int get_pixel_format(AVCodecContext *avctx)
 #endif
         break;
     case AV_PIX_FMT_GRAY8:
+#if CONFIG_AV1_VAAPI_HWACCEL
+        *fmtp++ = AV_PIX_FMT_VAAPI;
+#endif
 #if CONFIG_AV1_NVDEC_HWACCEL
         *fmtp++ = AV_PIX_FMT_CUDA;
 #endif
         break;
     case AV_PIX_FMT_GRAY10:
+#if CONFIG_AV1_VAAPI_HWACCEL
+        *fmtp++ = AV_PIX_FMT_VAAPI;
+#endif
 #if CONFIG_AV1_NVDEC_HWACCEL
         *fmtp++ = AV_PIX_FMT_CUDA;
+#endif
+        break;
+    case AV_PIX_FMT_GRAY12:
+#if CONFIG_AV1_VAAPI_HWACCEL
+        *fmtp++ = AV_PIX_FMT_VAAPI;
 #endif
         break;
     }

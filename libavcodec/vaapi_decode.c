@@ -429,6 +429,16 @@ static const struct {
                            H264ConstrainedBaseline),
     MAP(H264,        H264_MAIN,       H264Main    ),
     MAP(H264,        H264_HIGH,       H264High    ),
+    /* libva kalium/avd: 4:2:2 and 4:4:4 (VAProfileH264High444 with the
+     * H.264 extension buffers). */
+    MAP(H264,        H264_HIGH_422,   H264High422 ),
+    MAP(H264,        H264_HIGH_422_INTRA,
+                                      H264High422 ),
+    MAP(H264,        H264_HIGH_444_PREDICTIVE,
+                                      H264High444 ),
+    MAP(H264,        H264_HIGH_444_INTRA,
+                                      H264High444 ),
+    MAP(H264,        H264_CAVLC_444,  H264High444 ),
 #if VA_CHECK_VERSION(0, 37, 0)
     MAP(HEVC,        HEVC_MAIN,       HEVCMain    ),
     MAP(HEVC,        HEVC_MAIN_10,    HEVCMain10  ),
@@ -463,6 +473,7 @@ static const struct {
 #if VA_CHECK_VERSION(1, 8, 0)
     MAP(AV1,         AV1_MAIN,        AV1Profile0),
     MAP(AV1,         AV1_HIGH,        AV1Profile1),
+    MAP(AV1,         AV1_PROFESSIONAL, AV1Profile2),
 #endif
 #if VA_CHECK_VERSION(1, 22, 0)
     MAP(H266,        VVC_MAIN_10,     VVCMain10),

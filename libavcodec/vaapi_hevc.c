@@ -649,6 +649,25 @@ VAProfile ff_vaapi_parse_hevc_rext_scc_profile(AVCodecContext *avctx)
 #endif
 
 end:
+#if VA_CHECK_VERSION(1, 2, 0)
+    /* The other RExt profiles (Main / Main 10 Intra, Monochrome, High
+     * Throughput 4:4:4, ...) by chroma format and bit depth, for drivers
+     * that decode every RExt tool. */
+    if (sps->bit_depth <= 12 && sps->bit_depth_chroma <= 12) {
+        int depth = FFMAX(sps->bit_depth, sps->bit_depth_chroma);
+        switch (sps->chroma_format_idc) {
+        case 0:
+        case 1:
+            return depth <= 8 ? VAProfileHEVCMain :
+                   depth <= 10 ? VAProfileHEVCMain10 : VAProfileHEVCMain12;
+        case 2:
+            return depth <= 10 ? VAProfileHEVCMain422_10 : VAProfileHEVCMain422_12;
+        case 3:
+            return depth <= 8 ? VAProfileHEVCMain444 :
+                   depth <= 10 ? VAProfileHEVCMain444_10 : VAProfileHEVCMain444_12;
+        }
+    }
+#endif
     if (avctx->hwaccel_flags & AV_HWACCEL_FLAG_ALLOW_PROFILE_MISMATCH) {
         // Default to selecting Main profile if profile mismatch is allowed
         return VAProfileHEVCMain;

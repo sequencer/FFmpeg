@@ -242,6 +242,8 @@ static int vaapi_h264_start_frame(AVCodecContext          *avctx,
     const SPS *sps = h->ps.sps;
     VAPictureParameterBufferH264 pic_param;
     VAIQMatrixBufferH264 iq_matrix;
+    /* High 4:4:4 Predictive / Intra and CAVLC 4:4:4 Intra. */
+    int high444 = sps->profile_idc == 244 || sps->profile_idc == 44;
     int err;
 
     pic->output_surface = ff_vaapi_get_surface_id(h->cur_pic_ptr->f);
@@ -288,6 +290,37 @@ static int vaapi_h264_start_frame(AVCodecContext          *avctx,
     err = fill_vaapi_ReferenceFrames(&pic_param, h);
     if (err < 0)
         goto fail;
+
+    if (high444) {
+        /* VAProfileH264High444: the lossless flag and all six 8x8 lists, in
+         * the PPS order Y, Cb, Cr with intra before inter. */
+        static const int pps_order[6] = { 0, 3, 1, 4, 2, 5 };
+        VAPictureParameterBufferH264Extension pic_ext = {
+            .base = pic_param,
+            .ext_fields.bits.qpprime_y_zero_transform_bypass_flag = sps->transform_bypass,
+        };
+        VAIQMatrixBufferH264Extension iq_ext;
+
+        err = ff_vaapi_decode_make_param_buffer(avctx, pic,
+                                                VAPictureParameterBufferType,
+                                                &pic_ext, sizeof(pic_ext));
+        if (err < 0)
+            goto fail;
+
+        memcpy(iq_ext.ScalingList4x4,
+               pps->scaling_matrix4, sizeof(iq_ext.ScalingList4x4));
+        for (int i = 0; i < 6; i++)
+            memcpy(iq_ext.ScalingList8x8[i], pps->scaling_matrix8[pps_order[i]],
+                   sizeof(iq_ext.ScalingList8x8[i]));
+
+        err = ff_vaapi_decode_make_param_buffer(avctx, pic,
+                                                VAIQMatrixBufferType,
+                                                &iq_ext, sizeof(iq_ext));
+        if (err < 0)
+            goto fail;
+
+        return 0;
+    }
 
     err = ff_vaapi_decode_make_param_buffer(avctx, pic,
                                             VAPictureParameterBufferType,

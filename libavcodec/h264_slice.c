@@ -822,11 +822,18 @@ static enum AVPixelFormat get_pixel_format(H264Context *h, int force_callback)
         if (CHROMA444(h)) {
             if (h->avctx->colorspace == AVCOL_SPC_RGB) {
                 *fmt++ = AV_PIX_FMT_GBRP10;
-            } else
+            } else {
+#if CONFIG_H264_VAAPI_HWACCEL
+                *fmt++ = AV_PIX_FMT_VAAPI;
+#endif
                 *fmt++ = AV_PIX_FMT_YUV444P10;
-        } else if (CHROMA422(h))
+            }
+        } else if (CHROMA422(h)) {
+#if CONFIG_H264_VAAPI_HWACCEL
+            *fmt++ = AV_PIX_FMT_VAAPI;
+#endif
             *fmt++ = AV_PIX_FMT_YUV422P10;
-        else {
+        } else {
 #if CONFIG_H264_VAAPI_HWACCEL
             // Just add as candidate. Whether VAProfileH264High10 usable or
             // not is decided by vaapi_decode_make_config() defined in FFmpeg
@@ -876,6 +883,10 @@ static enum AVPixelFormat get_pixel_format(H264Context *h, int force_callback)
             *fmt++ = AV_PIX_FMT_VIDEOTOOLBOX;
 #endif
         if (CHROMA444(h)) {
+#if CONFIG_H264_VAAPI_HWACCEL
+            if (h->avctx->colorspace != AVCOL_SPC_RGB)
+                *fmt++ = AV_PIX_FMT_VAAPI;
+#endif
             if (h->avctx->colorspace == AVCOL_SPC_RGB)
                 *fmt++ = AV_PIX_FMT_GBRP;
             else if (h->avctx->color_range == AVCOL_RANGE_JPEG)
@@ -883,6 +894,9 @@ static enum AVPixelFormat get_pixel_format(H264Context *h, int force_callback)
             else
                 *fmt++ = AV_PIX_FMT_YUV444P;
         } else if (CHROMA422(h)) {
+#if CONFIG_H264_VAAPI_HWACCEL
+            *fmt++ = AV_PIX_FMT_VAAPI;
+#endif
             if (h->avctx->color_range == AVCOL_RANGE_JPEG)
                 *fmt++ = AV_PIX_FMT_YUVJ422P;
             else
