@@ -267,8 +267,9 @@ static int vaapi_h264_start_frame(AVCodecContext          *avctx,
             .log2_max_pic_order_cnt_lsb_minus4      = sps->log2_max_poc_lsb - 4,
             .delta_pic_order_always_zero_flag       = sps->delta_pic_order_always_zero_flag,
         },
-        .pic_init_qp_minus26                        = pps->init_qp - 26,
-        .pic_init_qs_minus26                        = pps->init_qs - 26,
+        /* The syntax elements: init_qp and init_qs include QpBdOffsetY. */
+        .pic_init_qp_minus26                        = pps->init_qp - 26 - 6 * (sps->bit_depth_luma - 8),
+        .pic_init_qs_minus26                        = pps->init_qs - 26 - 6 * (sps->bit_depth_luma - 8),
         .chroma_qp_index_offset                     = pps->chroma_qp_index_offset[0],
         .second_chroma_qp_index_offset              = pps->chroma_qp_index_offset[1],
         .pic_fields.bits = {
