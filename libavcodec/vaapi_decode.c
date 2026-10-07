@@ -266,6 +266,9 @@ static const struct {
 #define MAP(va, av) { VA_FOURCC_ ## va, AV_PIX_FMT_ ## av }
     // 4:0:0
     MAP(Y800, GRAY8),
+#ifdef VA_FOURCC_Y16
+    MAP(Y16,  GRAY16),
+#endif
     // 4:2:0
     MAP(NV12, NV12),
     MAP(YV12, YUV420P),
